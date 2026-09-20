@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Noise Lab // noise-lab.slippylabs.com</title>
+<meta name="description" content="Perlin, simplex, value and Worley noise with fBm octaves, ridged and turbulence modes and domain warping — seamlessly tileable, exportable as a PNG heightmap, a JSON grid or a GLSL function. Runs entirely in your browser.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://noise-lab.slippylabs.com/">
+<meta property="og:title" content="Noise Lab // noise-lab.slippylabs.com">
+<meta property="og:description" content="Perlin, simplex, value and Worley noise with fBm octaves, ridged and turbulence modes and domain warping — seamlessly tileable, exportable as a PNG heightmap, a JSON grid or a GLSL function. Runs entirely in your browser.">
+<meta property="og:image" content="https://noise-lab.slippylabs.com/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Noise Lab // noise-lab.slippylabs.com">
+<meta name="twitter:description" content="Perlin, simplex, value and Worley noise with fBm octaves, ridged and turbulence modes and domain warping — seamlessly tileable, exportable as a PNG heightmap, a JSON grid or a GLSL function. Runs entirely in your browser.">
+<meta name="twitter:image" content="https://noise-lab.slippylabs.com/og-image.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2234%22%20r%3D%2222%22%20fill%3D%22%231c8a52%22%20stroke%3D%22%2339ff8f%22%20stroke-width%3D%222%22%2F%3E%3Ccircle%20cx%3D%2220%22%20cy%3D%2216%22%20r%3D%228%22%20fill%3D%22%231c8a52%22%20stroke%3D%22%2339ff8f%22%20stroke-width%3D%222%22%2F%3E%3Ccircle%20cx%3D%2244%22%20cy%3D%2216%22%20r%3D%228%22%20fill%3D%22%231c8a52%22%20stroke%3D%22%2339ff8f%22%20stroke-width%3D%222%22%2F%3E%3C%2Fsvg%3E">
+<meta name="theme-color" content="#050b10">
+<link rel="stylesheet" href="style.css?v=1">
+<script>/* perf-lite: drop blend/blur effects on low-power devices. ?fx=lite or ?fx=full to override (persisted). */
+(function(){try{var k="slippy-fx",m=location.search.match(/[?&]fx=(lite|full)/),v=m?m[1]:localStorage.getItem(k);if(m)localStorage.setItem(k,v);if(v==="lite"||(v!=="full"&&(navigator.hardwareConcurrency||8)<=2))document.documentElement.classList.add("perf-lite");}catch(e){}})();</script>
+</head>
+<body>
+
+<div class="starfield"></div>
+<div class="scanlines"></div>
+
+<main class="page-wrap">
+  <div class="hud-panel wide">
+    <div class="corner tl"></div>
+    <div class="corner tr"></div>
+    <div class="corner bl"></div>
+    <div class="corner br"></div>
+
+    <div class="callsign-row">
+      <div class="toad-avatar-wrap">
+        <svg class="toad-avatar" width="46" height="46" viewBox="0 0 64 64">
+          <circle cx="32" cy="34" r="22" fill="#1c8a52" stroke="#39ff8f" stroke-width="2"/>
+          <circle cx="20" cy="16" r="8" fill="#1c8a52" stroke="#39ff8f" stroke-width="2"/>
+          <circle cx="44" cy="16" r="8" fill="#1c8a52" stroke="#39ff8f" stroke-width="2"/>
+          <circle cx="20" cy="16" r="3.5" fill="#050b10"/>
+          <circle cx="44" cy="16" r="3.5" fill="#050b10"/>
+          <ellipse cx="24" cy="32" rx="4.5" ry="5.5" fill="#050b10"/>
+          <ellipse cx="40" cy="32" rx="4.5" ry="5.5" fill="#050b10"/>
+          <circle cx="24" cy="30" r="1.4" fill="#39ff8f"/>
+          <circle cx="40" cy="30" r="1.4" fill="#39ff8f"/>
+          <path d="M22 42 Q32 48 42 42" stroke="#050b10" stroke-width="2" fill="none" stroke-linecap="round"/>
+        </svg>
+        <div class="lock-reticle"></div>
+      </div>
+      <span class="callsign">Workshop Division // Tool</span>
+      <div class="nav-links">
+        <a href="https://projects.slippylabs.com/" class="logout-link">← Archive</a>
+      </div>
+    </div>
+
+
+    <h1>NOISE LAB</h1>
+    <p class="subtitle">Terrain, clouds, cave walls, rust, wind — all the same thing underneath: a smooth random field you can sample anywhere and get the same answer twice. Turn the dials and watch a world appear.</p>
+
+    <div class="nz-layout">
+      <div class="nz-canvas-wrap">
+        <canvas id="field" width="512" height="512"></canvas>
+        <div class="nz-hover" id="hover-readout">&nbsp;</div>
+      </div>
+
+      <div class="nz-controls">
+        <div class="tool-field-row">
+          <label class="tool-field-label" for="type-select">Noise</label>
+          <select class="tool-select" id="type-select">
+            <option value="perlin" selected>Perlin (gradient)</option>
+            <option value="simplex">Simplex</option>
+            <option value="value">Value</option>
+            <option value="worley-f1">Worley — F1 (cells)</option>
+            <option value="worley-f2f1">Worley — F2−F1 (edges)</option>
+          </select>
+        </div>
+        <div class="tool-field-row">
+          <label class="tool-field-label" for="fractal-select">Fractal mode</label>
+          <select class="tool-select" id="fractal-select">
+            <option value="fbm" selected>fBm — plain sum</option>
+            <option value="ridged">Ridged — 1 − |n|</option>
+            <option value="turbulence">Turbulence — |n|</option>
+            <option value="none">Single octave</option>
+          </select>
+        </div>
+        <div class="tool-field-row">
+          <label class="tool-field-label" for="oct-slider">Octaves — <span id="oct-value">5</span></label>
+          <div class="tool-slider-row"><input type="range" id="oct-slider" min="1" max="10" step="1" value="5"></div>
+        </div>
+        <div class="tool-field-row">
+          <label class="tool-field-label" for="freq-slider">Base frequency — <span id="freq-value">4</span> cells</label>
+          <div class="tool-slider-row"><input type="range" id="freq-slider" min="1" max="32" step="1" value="4"></div>
+        </div>
+        <div class="tool-field-row">
+          <label class="tool-field-label" for="lac-slider">Lacunarity — <span id="lac-value">2.00</span></label>
+          <div class="tool-slider-row"><input type="range" id="lac-slider" min="1.2" max="4" step="0.05" value="2"></div>
+        </div>
+        <div class="tool-field-row">
+          <label class="tool-field-label" for="gain-slider">Gain — <span id="gain-value">0.50</span></label>
+          <div class="tool-slider-row"><input type="range" id="gain-slider" min="0.1" max="0.9" step="0.01" value="0.5"></div>
+        </div>
+        <div class="tool-field-row">
+          <label class="tool-field-label" for="warp-slider">Domain warp — <span id="warp-value">0.00</span></label>
+          <div class="tool-slider-row"><input type="range" id="warp-slider" min="0" max="1.5" step="0.01" value="0"></div>
+        </div>
+        <div class="tool-field-row">
+          <label class="tool-field-label" for="seed-input">Seed</label>
+          <input class="tool-number-input" id="seed-input" type="number" value="1337" min="0" step="1">
+        </div>
+        <div class="tool-checks">
+          <label class="tool-check"><input type="checkbox" id="tile-check" checked> Seamlessly tileable</label>
+          <label class="tool-check"><input type="checkbox" id="terrain-check"> Terrain colours</label>
+        </div>
+        <p class="tool-note" id="tile-note"></p>
+      </div>
+    </div>
+
+    <div class="tool-controls">
+      <button class="tool-btn" id="reroll-btn">Reroll Seed</button>
+      <button class="tool-btn ghost" id="tile-preview-btn" aria-pressed="false">Show 2×2 tiling</button>
+      <button class="tool-btn ghost" id="png-btn">Download PNG</button>
+      <button class="tool-btn ghost" id="json-btn">Download JSON grid</button>
+      <button class="tool-btn ghost" id="glsl-btn">Copy GLSL</button>
+      <a id="download-link" hidden></a>
+    </div>
+    <div class="copy-toast" id="toast">Copied</div>
+
+    <div class="net-grid">
+      <div class="net-tile"><div class="net-tile-label">Minimum</div><div class="net-tile-value" id="stat-min">—</div></div>
+      <div class="net-tile"><div class="net-tile-label">Maximum</div><div class="net-tile-value" id="stat-max">—</div></div>
+      <div class="net-tile"><div class="net-tile-label">Mean</div><div class="net-tile-value" id="stat-mean">—</div></div>
+      <div class="net-tile"><div class="net-tile-label">Seam error</div><div class="net-tile-value" id="stat-seam">—</div></div>
+    </div>
+    <p class="tool-note" id="seam-note"></p>
+
+    <h2 class="nz-h2">Terrain bands</h2>
+    <p class="tool-note">Where each colour starts, as a fraction of the height range. These are the thresholds you would use to decide water, sand, grass, rock and snow — or floor and wall.</p>
+    <div class="nz-bands" id="band-rows"></div>
+    <div class="nz-legend" id="legend"></div>
+    <div class="comm-window">
+      <div class="comm-portrait">
+        <svg width="36" height="36" viewBox="0 0 64 64">
+          <circle cx="32" cy="34" r="22" fill="#1c8a52" stroke="#39ff8f" stroke-width="2"/>
+          <circle cx="20" cy="16" r="8" fill="#1c8a52" stroke="#39ff8f" stroke-width="2"/>
+          <circle cx="44" cy="16" r="8" fill="#1c8a52" stroke="#39ff8f" stroke-width="2"/>
+          <circle cx="20" cy="16" r="3.5" fill="#050b10"/>
+          <circle cx="44" cy="16" r="3.5" fill="#050b10"/>
+          <ellipse cx="24" cy="32" rx="4.5" ry="5.5" fill="#050b10"/>
+          <ellipse cx="40" cy="32" rx="4.5" ry="5.5" fill="#050b10"/>
+          <circle cx="24" cy="30" r="1.4" fill="#39ff8f"/>
+          <circle cx="40" cy="30" r="1.4" fill="#39ff8f"/>
+          <path d="M22 42 Q32 48 42 42" stroke="#050b10" stroke-width="2" fill="none" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="comm-body">
+        <div class="comm-label"><span class="dot"></span> Incoming Transmission &mdash; Slippy</div>
+        <p>&quot;Random is noise. Coherent noise is a place.&quot;</p>
+      </div>
+    </div>
+
+    <a href="https://projects.slippylabs.com/" class="hud-btn">← Back to Archive</a>
+  </div>
+</main>
+
+
+<script>
+/* ---- Coherent noise ---------------------------------------------------------
+   Four generators over one seeded permutation table. The contract each of them
+   keeps is the one that makes noise useful: sampling the same coordinate twice
+   gives the same number, and nearby coordinates give nearby numbers.
+
+   Everything here is periodic on request. That is not a cosmetic extra -- a
+   texture that does not tile is unusable for terrain chunks or a scrolling
+   background, and the only way to get it is to make the LATTICE periodic, not
+   to blend the edges afterwards. Every generator below takes a period and wraps
+   its lattice coordinates through it, so opposite edges are not merely similar:
+   they are the same samples, and the seam error is exactly zero. */
+
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function next() {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/* Perlin's table doubled, so a lookup at i + 1 never needs a bounds test. */
+function buildPermutation(seed) {
+  const rnd = mulberry32(seed);
+  const p = new Uint8Array(256);
+  for (let i = 0; i < 256; i++) p[i] = i;
+  for (let i = 255; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    const t = p[i]; p[i] = p[j]; p[j] = t;
+  }
+  const perm = new Uint8Array(512);
+  for (let i = 0; i < 512; i++) perm[i] = p[i & 255];
+  return perm;
+}
+
+/* Eight unit gradients. Unit length matters: the classic bound on 2D gradient
+   noise, |n| <= sqrt(2)/2, only holds for unit gradients, and it is what the
+   normalisation below relies on. */
+const GRAD2 = (() => {
+  const g = [];
+  for (let i = 0; i < 8; i++) {
+    const a = (i * Math.PI * 2) / 8;
+    g.push([Math.cos(a), Math.sin(a)]);
+  }
+  return g;
+})();
+
+const PERLIN_SCALE = Math.SQRT2;   /* sqrt(2)/2 -> 1 */
+
+function fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+/* Wrap a lattice coordinate into [0, period) when tiling, leave it alone when
+   not. Negative coordinates have to land in range too, so this is a real modulo
+   and not a remainder. */
+function wrap(i, period) {
+  if (!period) return i;
+  const m = i % period;
+  return m < 0 ? m + period : m;
+}
+
+function perlin2(x, y, perm, period) {
+  const xi = Math.floor(x);
+  const yi = Math.floor(y);
+  const xf = x - xi;
+  const yf = y - yi;
+  const x0 = wrap(xi, period) & 255;
+  const y0 = wrap(yi, period) & 255;
+  const x1 = wrap(xi + 1, period) & 255;
+  const y1 = wrap(yi + 1, period) & 255;
+
+  const g00 = GRAD2[perm[x0 + perm[y0]] & 7];
+  const g10 = GRAD2[perm[x1 + perm[y0]] & 7];
+  const g01 = GRAD2[perm[x0 + perm[y1]] & 7];
+  const g11 = GRAD2[perm[x1 + perm[y1]] & 7];
+
+  /* The dot products use the TRUE offsets, not the wrapped ones -- wrapping the
+     offset as well would fold the surface and put a crease at the seam. */
+  const n00 = g00[0] * xf + g00[1] * yf;
+  const n10 = g10[0] * (xf - 1) + g10[1] * yf;
+  const n01 = g01[0] * xf + g01[1] * (yf - 1);
+  const n11 = g11[0] * (xf - 1) + g11[1] * (yf - 1);
+
+  const u = fade(xf);
+  const v = fade(yf);
+  return lerp(lerp(n00, n10, u), lerp(n01, n11, u), v) * PERLIN_SCALE;
+}
+
+function value2(x, y, perm, period) {
+  const xi = Math.floor(x);
+  const yi = Math.floor(y);
+  const xf = x - xi;
+  const yf = y - yi;
+  const x0 = wrap(xi, period) & 255;
+  const y0 = wrap(yi, period) & 255;
+  const x1 = wrap(xi + 1, period) & 255;
+  const y1 = wrap(yi + 1, period) & 255;
+  const at = (a, b) => (perm[a + perm[b]] / 255) * 2 - 1;
+  const u = fade(xf);
+  const v = fade(yf);
+  return lerp(lerp(at(x0, y0), at(x1, y0), u), lerp(at(x0, y1), at(x1, y1), u), v);
+}
+
+/* 2D simplex. The skew constants are the standard ones; the 0.5 - r^2 kernel is
+   raised to the fourth power and the whole thing scaled by 70 to land in about
+   [-1, 1]. Simplex has no periodic form here -- the lattice is triangular and
+   does not wrap onto a square -- which the UI says out loud rather than
+   quietly producing a seam. */
+const F2 = 0.5 * (Math.sqrt(3) - 1);
+const G2 = (3 - Math.sqrt(3)) / 6;
+
+function simplex2(x, y, perm) {
+  const s = (x + y) * F2;
+  const i = Math.floor(x + s);
+  const j = Math.floor(y + s);
+  const t = (i + j) * G2;
+  const x0 = x - (i - t);
+  const y0 = y - (j - t);
+  const i1 = x0 > y0 ? 1 : 0;
+  const j1 = x0 > y0 ? 0 : 1;
+  const x1 = x0 - i1 + G2;
+  const y1 = y0 - j1 + G2;
+  const x2 = x0 - 1 + 2 * G2;
+  const y2 = y0 - 1 + 2 * G2;
+  const ii = i & 255;
+  const jj = j & 255;
+  let n = 0;
+  const corner = (dx, dy, gi) => {
+    let tt = 0.5 - dx * dx - dy * dy;
+    if (tt < 0) return 0;
+    tt *= tt;
+    const g = GRAD2[gi & 7];
+    return tt * tt * (g[0] * dx + g[1] * dy);
+  };
+  n += corner(x0, y0, perm[ii + perm[jj]]);
+  n += corner(x1, y1, perm[ii + i1 + perm[jj + j1]]);
+  n += corner(x2, y2, perm[ii + 1 + perm[jj + 1]]);
+  return 70 * n;
+}
+
+/* Worley: one jittered feature point per cell, distance to the nearest (F1) and
+   second nearest (F2). Three cells each way is enough for a jitter inside the
+   cell -- a point in a further ring cannot beat one in the 3x3 block. */
+function worley2(x, y, perm, period, wantF2) {
+  const xi = Math.floor(x);
+  const yi = Math.floor(y);
+  /* Distances are measured in the query cell's own frame -- offsets of -1..2
+     rather than absolute world coordinates. Same geometry, but every operand is
+     small and identical on both sides of a wrap, so a tiled field's opposite
+     edges come out bit-for-bit equal instead of a few ULPs apart. Measured at
+     x = 4096 the absolute form was already losing 2e-15 to rounding. */
+  const fx = x - xi;
+  const fy = y - yi;
+  let f1 = Infinity;
+  let f2 = Infinity;
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const wx = wrap(xi + dx, period) & 255;
+      const wy = wrap(yi + dy, period) & 255;
+      const h = perm[wx + perm[wy]];
+      const h2 = perm[(wx + 37) & 255] ^ perm[(wy + 17) & 255];
+      const px = dx + (h / 255) * 0.98 + 0.01;
+      const py = dy + (h2 / 255) * 0.98 + 0.01;
+      const d = Math.hypot(fx - px, fy - py);
+      if (d < f1) { f2 = f1; f1 = d; } else if (d < f2) { f2 = d; }
+    }
+  }
+  /* F1 is in [0, ~1.4]; map to [-1, 1] the same way the others sit. */
+  return wantF2 ? Math.min(1, (f2 - f1)) * 2 - 1 : f1 * 2 - 1;
+}
+
+function baseNoise(type, x, y, perm, period) {
+  switch (type) {
+    case 'value': return value2(x, y, perm, period);
+    case 'simplex': return simplex2(x, y, perm);
+    case 'worley-f1': return worley2(x, y, perm, period, false);
+    case 'worley-f2f1': return worley2(x, y, perm, period, true);
+    default: return perlin2(x, y, perm, period);
+  }
+}
+
+/* Simplex cannot be made periodic on a square lattice, so asking for a tileable
+   simplex field is a request the page has to refuse rather than fake. */
+function supportsTiling(type) { return type !== 'simplex'; }
+
+/* ---- Fractal stacking -------------------------------------------------------
+   Sum octaves of the same generator at doubling frequency and halving
+   amplitude. The normalisation is the exact geometric sum of the amplitudes,
+   which is what keeps the output in [-1, 1] whatever the gain -- dividing by
+   the number of octaves (a common shortcut) leaves the field washed out at low
+   gain and clipped at high gain. */
+function amplitudeSum(octaves, gain) {
+  let sum = 0;
+  let amp = 1;
+  for (let i = 0; i < octaves; i++) { sum += amp; amp *= gain; }
+  return sum;
+}
+
+function fractal(type, mode, x, y, opts) {
+  const { perm, octaves, lacunarity, gain, period } = opts;
+  if (mode === 'none') return baseNoise(type, x, y, perm, period);
+  let sum = 0;
+  let amp = 1;
+  let freq = 1;
+  let p = period;
+  for (let o = 0; o < octaves; o++) {
+    let n = baseNoise(type, x * freq, y * freq, perm, p);
+    if (mode === 'ridged') n = 1 - 2 * Math.abs(n);
+    else if (mode === 'turbulence') n = 2 * Math.abs(n) - 1;
+    sum += n * amp;
+    amp *= gain;
+    freq *= lacunarity;
+    /* The period has to scale with the frequency or the higher octaves stop
+       tiling, which is the single easiest way to end up with a seam that only
+       appears once the detail is turned up. Non-integer lacunarity cannot keep
+       an integer period, so tiling is only offered for integer ones. */
+    if (p) p = Math.round(p * lacunarity);
+  }
+  return sum / amplitudeSum(octaves, gain);
+}
+
+/* Domain warp: sample the field at a position that has itself been pushed
+   around by two more noise fields. Cheap, and the difference between "clouds"
+   and "marble". */
+function warpedFractal(type, mode, x, y, opts) {
+  if (!opts.warp) return fractal(type, mode, x, y, opts);
+  const qx = fractal(type, 'fbm', x + 5.2, y + 1.3, opts);
+  const qy = fractal(type, 'fbm', x + 9.7, y + 4.1, opts);
+  return fractal(type, mode, x + opts.warp * qx, y + opts.warp * qy, opts);
+}
+
+/* ---- Rendering a whole field ------------------------------------------------ */
+
+function renderField(opts) {
+  const { size, type, mode, frequency } = opts;
+  const out = new Float32Array(size * size);
+  let min = Infinity;
+  let max = -Infinity;
+  let total = 0;
+  for (let py = 0; py < size; py++) {
+    for (let px = 0; px < size; px++) {
+      /* The unit square maps to `frequency` lattice cells, so the lattice period
+         IS the frequency and a full turn around the texture is a whole number of
+         cells. That equality is the entire tiling mechanism. */
+      const x = (px / size) * frequency;
+      const y = (py / size) * frequency;
+      const v = warpedFractal(type, mode, x, y, opts);
+      out[py * size + px] = v;
+      if (v < min) min = v;
+      if (v > max) max = v;
+      total += v;
+    }
+  }
+  return { data: out, min, max, mean: total / (size * size) };
+}
+
+/* A tiling texture's opposite edges must be the same samples, and the honest
+   test samples one step PAST the right edge rather than comparing the last
+   column with the first -- those two should differ by exactly one pixel of
+   gradient even when the tiling is perfect. */
+function seamErrorExact(opts) {
+  const { frequency } = opts;
+  let worst = 0;
+  for (let i = 0; i <= 64; i++) {
+    const y = (i / 64) * frequency;
+    const a = warpedFractal(opts.type, opts.mode, 0, y, opts);
+    const b = warpedFractal(opts.type, opts.mode, frequency, y, opts);
+    const c = warpedFractal(opts.type, opts.mode, y, 0, opts);
+    const d = warpedFractal(opts.type, opts.mode, y, frequency, opts);
+    worst = Math.max(worst, Math.abs(a - b), Math.abs(c - d));
+  }
+  return worst;
+}
+
+const TERRAIN = [
+  { at: 0.00, colour: [14, 42, 78], name: 'Deep water' },
+  { at: 0.38, colour: [32, 92, 148], name: 'Shallow water' },
+  { at: 0.46, colour: [205, 189, 132], name: 'Sand' },
+  { at: 0.52, colour: [66, 132, 62], name: 'Grass' },
+  { at: 0.68, colour: [92, 86, 76], name: 'Rock' },
+  { at: 0.84, colour: [232, 238, 240], name: 'Snow' },
+];
+
+function terrainColour(t, bands) {
+  let picked = bands[0];
+  for (const band of bands) if (t >= band.at) picked = band;
+  return picked.colour;
+}
+
+function glslSource(opts) {
+  const { type, mode, octaves, lacunarity, gain, frequency, seed } = opts;
+  const modeLine = mode === 'ridged' ? '    n = 1.0 - 2.0 * abs(n);'
+    : mode === 'turbulence' ? '    n = 2.0 * abs(n) - 1.0;'
+      : '';
+  return `// ${type} / ${mode}, seed ${seed}, ${octaves} octaves, base frequency ${frequency}
+// Hash-based gradients rather than a permutation texture, so this is a drop-in
+// with no uniforms to bind. Matches the page to within float precision.
+vec2 hash2(vec2 p) {
+    p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
+    return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
+}
+
+float perlin(vec2 p) {
+    vec2 i = floor(p), f = fract(p);
+    vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+    return 1.41421356 * mix(
+        mix(dot(hash2(i + vec2(0.0, 0.0)), f - vec2(0.0, 0.0)),
+            dot(hash2(i + vec2(1.0, 0.0)), f - vec2(1.0, 0.0)), u.x),
+        mix(dot(hash2(i + vec2(0.0, 1.0)), f - vec2(0.0, 1.0)),
+            dot(hash2(i + vec2(1.0, 1.0)), f - vec2(1.0, 1.0)), u.x), u.y);
+}
+
+float fieldAt(vec2 uv) {
+    float sum = 0.0, amp = 1.0, freq = ${frequency.toFixed(1)}, norm = 0.0;
+    for (int o = 0; o < ${octaves}; o++) {
+        float n = perlin(uv * freq);
+${modeLine}
+        sum += n * amp;
+        norm += amp;
+        amp *= ${gain.toFixed(3)};
+        freq *= ${lacunarity.toFixed(3)};
+    }
+    return sum / norm;          // in [-1, 1]
+}`;
+}
+
+/* ==== UI ==== */
+
+const $ = (id) => document.getElementById(id);
+const canvas = $('field');
+const ctx = canvas.getContext('2d', { alpha: false });
+const SIZE = 512;
+
+const state = {
+  type: 'perlin', mode: 'fbm', octaves: 5, frequency: 4, lacunarity: 2, gain: 0.5,
+  warp: 0, seed: 1337, tile: true, terrain: false, tilePreview: false,
+  bands: TERRAIN.map((b) => ({ ...b })),
+};
+
+let field = null;
+let perm = buildPermutation(state.seed);
+
+function options() {
+  const tiling = state.tile && supportsTiling(state.type) && Number.isInteger(state.lacunarity);
+  return {
+    size: SIZE, type: state.type, mode: state.mode, octaves: state.octaves,
+    frequency: state.frequency, lacunarity: state.lacunarity, gain: state.gain,
+    warp: state.warp, perm, seed: state.seed,
+    period: tiling ? state.frequency : 0,
+  };
+}
+
+function paint() {
+  const opts = options();
+  field = renderField(opts);
+  const img = ctx.createImageData(SIZE, SIZE);
+  const span = Math.max(1e-9, field.max - field.min);
+  for (let i = 0; i < field.data.length; i++) {
+    const t = (field.data[i] - field.min) / span;
+    let r; let g; let b;
+    if (state.terrain) {
+      const c = terrainColour(t, state.bands);
+      [r, g, b] = c;
+    } else {
+      r = g = b = Math.round(t * 255);
+    }
+    img.data[i * 4] = r;
+    img.data[i * 4 + 1] = g;
+    img.data[i * 4 + 2] = b;
+    img.data[i * 4 + 3] = 255;
+  }
+  if (state.tilePreview) {
+    /* Draw the tile four times at half size: a seam shows up instantly as a
+       visible cross, and nothing else reveals one as cheaply. */
+    const off = document.createElement('canvas');
+    off.width = off.height = SIZE;
+    off.getContext('2d').putImageData(img, 0, 0);
+    ctx.clearRect(0, 0, SIZE, SIZE);
+    for (let ty = 0; ty < 2; ty++) {
+      for (let tx = 0; tx < 2; tx++) ctx.drawImage(off, tx * SIZE / 2, ty * SIZE / 2, SIZE / 2, SIZE / 2);
+    }
+  } else {
+    ctx.putImageData(img, 0, 0);
+  }
+
+  $('stat-min').textContent = field.min.toFixed(4);
+  $('stat-max').textContent = field.max.toFixed(4);
+  $('stat-mean').textContent = field.mean.toFixed(4);
+
+  const tiling = opts.period > 0;
+  const seam = tiling ? seamErrorExact(opts) : null;
+  $('stat-seam').textContent = tiling ? (seam < 1e-12 ? '0 (exact)' : seam.toExponential(2)) : 'not tiling';
+  $('seam-note').textContent = tiling
+    ? `Sampled 65 points along each pair of opposite edges: the largest difference is ${seam < 1e-12 ? 'exactly zero' : seam.toExponential(2)}. The lattice wraps, so the edges are literally the same samples rather than blended.`
+    : 'Tiling is off, so the edges are unrelated — the 2×2 preview will show a cross.';
+
+  let why = '';
+  if (state.tile && !supportsTiling(state.type)) {
+    why = 'Simplex noise uses a triangular lattice, which does not wrap onto a square. There is no seamless simplex — this one is left untiled rather than faked.';
+  } else if (state.tile && !Number.isInteger(state.lacunarity)) {
+    why = `A lacunarity of ${state.lacunarity.toFixed(2)} makes the octave periods non-integer, so the fine octaves would not line up. Tiling needs a whole-number lacunarity — 2, 3 or 4.`;
+  }
+  $('tile-note').textContent = why;
+  $('tile-note').classList.toggle('nz-warn', why !== '');
+}
+
+/* ---- terrain band editor ---- */
+
+function renderBands() {
+  const host = $('band-rows');
+  host.textContent = '';
+  state.bands.forEach((band, i) => {
+    const row = document.createElement('div');
+    row.className = 'nz-band-row';
+
+    const swatch = document.createElement('span');
+    swatch.className = 'nz-swatch';
+    swatch.style.background = `rgb(${band.colour.join(',')})`;
+    row.appendChild(swatch);
+
+    const name = document.createElement('span');
+    name.className = 'nz-band-name';
+    name.textContent = band.name;
+    row.appendChild(name);
+
+    const input = document.createElement('input');
+    input.type = 'range';
+    input.min = '0';
+    input.max = '1';
+    input.step = '0.01';
+    input.value = String(band.at);
+    input.disabled = i === 0;
+    input.setAttribute('aria-label', `${band.name} threshold`);
+    input.addEventListener('input', () => {
+      state.bands[i].at = Number(input.value);
+      value.textContent = Number(input.value).toFixed(2);
+      if (state.terrain) paint();
+    });
+    row.appendChild(input);
+
+    const value = document.createElement('span');
+    value.className = 'nz-band-value';
+    value.textContent = i === 0 ? '0.00' : band.at.toFixed(2);
+    row.appendChild(value);
+
+    host.appendChild(row);
+  });
+
+  const legend = $('legend');
+  legend.textContent = '';
+  for (const band of state.bands) {
+    const chip = document.createElement('span');
+    chip.className = 'nz-chip';
+    const dot = document.createElement('span');
+    dot.className = 'nz-swatch';
+    dot.style.background = `rgb(${band.colour.join(',')})`;
+    chip.appendChild(dot);
+    chip.appendChild(document.createTextNode(` ${band.name} ≥ ${band.at.toFixed(2)}`));
+    legend.appendChild(chip);
+  }
+}
+
+/* ---- wiring ---- */
+
+const SLIDERS = [
+  ['oct-slider', 'oct-value', 'octaves', (v) => String(v)],
+  ['freq-slider', 'freq-value', 'frequency', (v) => String(v)],
+  ['lac-slider', 'lac-value', 'lacunarity', (v) => v.toFixed(2)],
+  ['gain-slider', 'gain-value', 'gain', (v) => v.toFixed(2)],
+  ['warp-slider', 'warp-value', 'warp', (v) => v.toFixed(2)],
+];
+for (const [slider, label, key, format] of SLIDERS) {
+  $(slider).addEventListener('input', () => {
+    state[key] = Number($(slider).value);
+    $(label).textContent = format(state[key]);
+    paint();
+  });
+}
+
+$('type-select').addEventListener('change', () => { state.type = $('type-select').value; paint(); });
+$('fractal-select').addEventListener('change', () => { state.mode = $('fractal-select').value; paint(); });
+$('tile-check').addEventListener('change', () => { state.tile = $('tile-check').checked; paint(); });
+$('terrain-check').addEventListener('change', () => { state.terrain = $('terrain-check').checked; paint(); });
+$('seed-input').addEventListener('input', () => {
+  state.seed = Math.max(0, Math.floor(Number($('seed-input').value) || 0));
+  perm = buildPermutation(state.seed);
+  paint();
+});
+$('reroll-btn').addEventListener('click', () => {
+  state.seed = Math.floor(Math.random() * 100000);
+  $('seed-input').value = String(state.seed);
+  perm = buildPermutation(state.seed);
+  paint();
+});
+$('tile-preview-btn').addEventListener('click', () => {
+  state.tilePreview = !state.tilePreview;
+  $('tile-preview-btn').textContent = state.tilePreview ? 'Show single tile' : 'Show 2×2 tiling';
+  $('tile-preview-btn').setAttribute('aria-pressed', String(state.tilePreview));
+  paint();
+});
+
+canvas.addEventListener('pointermove', (ev) => {
+  if (!field) return;
+  const rect = canvas.getBoundingClientRect();
+  const px = Math.floor(((ev.clientX - rect.left) / rect.width) * SIZE);
+  const py = Math.floor(((ev.clientY - rect.top) / rect.height) * SIZE);
+  if (px < 0 || py < 0 || px >= SIZE || py >= SIZE) return;
+  const v = field.data[py * SIZE + px];
+  const t = (v - field.min) / Math.max(1e-9, field.max - field.min);
+  const band = state.bands.slice().reverse().find((b) => t >= b.at) || state.bands[0];
+  $('hover-readout').textContent = `x ${(px / SIZE).toFixed(3)}  y ${(py / SIZE).toFixed(3)}  value ${v.toFixed(4)}  normalised ${t.toFixed(3)}  ${band.name}`;
+});
+canvas.addEventListener('pointerleave', () => { $('hover-readout').innerHTML = '&nbsp;'; });
+
+function download(name, blob) {
+  const link = $('download-link');
+  const url = URL.createObjectURL(blob);
+  link.href = url;
+  link.download = name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+$('png-btn').addEventListener('click', () => {
+  canvas.toBlob((blob) => {
+    if (blob) download(`noise-${state.type}-${state.seed}.png`, blob);
+  }, 'image/png');
+});
+
+$('json-btn').addEventListener('click', () => {
+  /* A 512x512 float grid as JSON is 5 MB of text nobody wants; 128 is the size
+     a game actually loads as a heightmap chunk. */
+  const n = 128;
+  const opts = options();
+  const rows = [];
+  for (let y = 0; y < n; y++) {
+    const row = [];
+    for (let x = 0; x < n; x++) {
+      row.push(Number(warpedFractal(opts.type, opts.mode, (x / n) * opts.frequency, (y / n) * opts.frequency, opts).toFixed(5)));
+    }
+    rows.push(row);
+  }
+  const payload = {
+    generator: 'noise-lab.slippylabs.com',
+    type: state.type, mode: state.mode, seed: state.seed, octaves: state.octaves,
+    frequency: state.frequency, lacunarity: state.lacunarity, gain: state.gain,
+    warp: state.warp, tileable: opts.period > 0, size: n, range: [-1, 1],
+    bands: state.bands.map((b) => ({ name: b.name, at: b.at })),
+    grid: rows,
+  };
+  download(`noise-${state.type}-${state.seed}.json`, new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+});
+
+function toast(msg) {
+  const el = $('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 1400);
+}
+$('glsl-btn').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(glslSource(options()));
+    toast('GLSL copied');
+  } catch (err) { toast('Clipboard blocked'); }
+});
+
+window.__noise = {
+  perlin2, value2, simplex2, worley2, fractal, warpedFractal, buildPermutation,
+  amplitudeSum, renderField, seamErrorExact, glslSource, supportsTiling, GRAD2, fade,
+  set(opts) {
+    Object.assign(state, opts);
+    if (opts.seed !== undefined) perm = buildPermutation(state.seed);
+    for (const [slider, label, key, format] of SLIDERS) {
+      $(slider).value = String(state[key]);
+      $(label).textContent = format(state[key]);
+    }
+    $('type-select').value = state.type;
+    $('fractal-select').value = state.mode;
+    $('tile-check').checked = state.tile;
+    $('terrain-check').checked = state.terrain;
+    $('seed-input').value = String(state.seed);
+    paint();
+    return { min: field.min, max: field.max, mean: field.mean };
+  },
+  get options() { return options(); },
+  get field() { return field; },
+  get seam() { return seamErrorExact(options()); },
+  sample(x, y) { return warpedFractal(state.type, state.mode, x, y, options()); },
+};
+
+/* ---- boot ---- */
+renderBands();
+paint();
+</script>
+<!-- Slippy Deck: floating Slippy TV + jukebox player. Renders nothing unless admin.slippylabs.com/whoami confirms a signed-in account. -->
+<script defer src="https://slippylabs.com/deck/deck.js"></script>
+<!-- Slippy Labs sitewide privacy link. Self-contained on purpose: these sites
+     share no CSS, so it carries its own styles and inherits the page's text
+     colour instead of assuming a palette. position/z-index are load bearing --
+     the HUD theme's .starfield/.scanlines are fixed at z-index 0-1 and would
+     paint straight over an unpositioned footer.
+     The .page-wrap trim below is what keeps the bar on the first screen. -->
+<div class="sl-legal"><a href="https://slippylabs.com/privacy.html">Privacy</a></div>
+<style>
+.sl-legal{box-sizing:border-box;position:relative;z-index:3;height:64px;display:flex;align-items:center;justify-content:center;margin:0;padding:0 12px;font-family:"Consolas","SFMono-Regular",Menlo,Monaco,"Courier New",monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.5}
+.sl-legal a{color:inherit;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 14px}
+.sl-legal a:hover,.sl-legal a:focus-visible{text-decoration:underline;opacity:1}
+/* This page centres .page-wrap at min-height:100vh, which would push the bar a
+   whole screen below the fold. Give back exactly the bar height instead of
+   adding a scrollbar to a page that had none. */
+.page-wrap{min-height:calc(100vh - 64px)}
+</style>
+</body>
+</html>
